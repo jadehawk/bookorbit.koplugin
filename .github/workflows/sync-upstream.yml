@@ -153,5 +153,5 @@ jobs:
           git tag "v${version}"
           git push origin "v${version}"
           gh release create "v${version}" bookorbit.koplugin.zip \
-            --title "BookOrbit KOReader Plugin v${version}" \
+            --title "BookOrbit v${version}" \
             --notes "Automated distribution of the BookOrbit KOReader plugin from BookOrbit release ${upstream_tag} (${sha})."
