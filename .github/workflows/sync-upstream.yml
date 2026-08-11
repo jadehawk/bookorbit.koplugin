@@ -60,12 +60,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if diff -qr upstream/koreader-plugin/bookorbit.koplugin bookorbit.koplugin > /dev/null; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "BookOrbit ${{ steps.release.outputs.tag }} contains no plugin changes to distribute."
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
+          version="${{ steps.upstream.outputs.version }}"
+          changed=false
+          release_missing=false
+
+          if ! diff -qr upstream/koreader-plugin/bookorbit.koplugin bookorbit.koplugin > /dev/null; then
+            changed=true
+          fi
+
+          if ! git rev-parse "v${version}" >/dev/null 2>&1; then
+            release_missing=true
+          fi
+
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+          echo "release_missing=$release_missing" >> "$GITHUB_OUTPUT"
+
+          if [[ "$changed" == "true" ]]; then
             echo "BookOrbit ${{ steps.release.outputs.tag }} contains plugin changes."
+          elif [[ "$release_missing" == "true" ]]; then
+            echo "Plugin source already matches BookOrbit ${{ steps.release.outputs.tag }}, but release v${version} is missing and will be created."
+          else
+            echo "BookOrbit ${{ steps.release.outputs.tag }} contains no plugin changes and release v${version} already exists."
           fi
 
       - name: Verify plugin version is publishable
@@ -80,7 +95,7 @@ jobs:
           fi
 
       - name: Run upstream KOReader Lua test suite
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' || steps.changes.outputs.release_missing == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -98,7 +113,7 @@ jobs:
           cp -a upstream/koreader-plugin/bookorbit.koplugin ./bookorbit.koplugin
 
       - name: Validate generic distribution
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' || steps.changes.outputs.release_missing == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -108,7 +123,7 @@ jobs:
           test ! -e bookorbit.koplugin/credentials.lua
 
       - name: Build plugin archive
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' || steps.changes.outputs.release_missing == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -126,7 +141,7 @@ jobs:
           git push origin HEAD
 
       - name: Create GitHub release
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' || steps.changes.outputs.release_missing == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
