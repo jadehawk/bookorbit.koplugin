@@ -20,17 +20,19 @@ If you have [Storefront](https://github.com/ultimatejimmy/storefront.koplugin) i
 
 ## Automated synchronization
 
-A GitHub Actions workflow checks BookOrbit upstream every six hours and can also be run manually. It fingerprints only `koreader-plugin/bookorbit.koplugin/`, so unrelated BookOrbit server or web changes do not create plugin releases.
+A GitHub Actions workflow checks the latest **published BookOrbit release** every six hours and can also be run manually. It never packages plugin code directly from the actively developed `main` branch. Instead, it checks out BookOrbit's immutable release tag and compares that released plugin with the copy in this repository.
 
-When the plugin changes, the workflow:
+When a published BookOrbit release contains plugin changes, the workflow:
 
-1. Reads `PLUGIN_VERSION` from upstream `main.lua`.
-2. Refuses to publish if that version already has a release tag, requiring the upstream plugin version to be bumped for every distributable change.
-3. Runs the complete upstream KOReader Lua test suite with Lua 5.1.
-4. Copies the generic plugin source into this repository.
+1. Reads `PLUGIN_VERSION` from the released plugin's `main.lua`.
+2. Refuses to publish if that plugin version already has a release tag here, requiring `PLUGIN_VERSION` to be bumped before the next BookOrbit release.
+3. Runs the complete KOReader Lua test suite from the same BookOrbit release with Lua 5.1.
+4. Copies the released generic plugin source into this repository.
 5. Verifies that no embedded BookOrbit configuration or credentials are present.
 6. Builds `bookorbit.koplugin.zip` with `bookorbit.koplugin/` as the archive root.
 7. Commits the synchronized source and creates the matching `vX.Y.Z` GitHub Release with the ZIP attached.
+
+If a new BookOrbit release does not change the KOReader plugin, the workflow exits without creating a plugin release.
 
 ## License
 
