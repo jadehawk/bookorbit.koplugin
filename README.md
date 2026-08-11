@@ -1,18 +1,22 @@
 # BookOrbit KOReader Plugin
 
-This repository is the automated distribution mirror for the BookOrbit KOReader plugin.
+This repository is the automated distribution mirror for the BookOrbit KOReader plugin. Its purpose is to make the plugin available as a standalone distribution and discoverable by KOReader plugin catalogs such as [Storefront](https://github.com/ultimatejimmy/storefront.koplugin).
 
-The source of truth is:
-
-`bookorbit/bookorbit/koreader-plugin/bookorbit.koplugin`
-
-Plugin code is developed and reviewed in the main BookOrbit repository. Do not submit plugin implementation changes here; submit them to `bookorbit/bookorbit` instead.
+The source of truth is the [BookOrbit repository](https://github.com/bookorbit/bookorbit). Plugin code is developed and reviewed there; do not submit plugin implementation changes to this distribution mirror.
 
 ## Installation
 
+### Recommended: BookOrbit UI
+
+Use the BookOrbit web UI to download a pre-configured plugin. This package includes your BookOrbit server configuration, making it the preferred and simplest installation method.
+
+### Alternative: Manual installation
+
 Download `bookorbit.koplugin.zip` from the latest GitHub Release, extract it, and copy `bookorbit.koplugin/` into your KOReader `plugins/` directory. Restart KOReader, then configure the BookOrbit server and login from **Tools > BookOrbit**.
 
-This repository is also intended for discovery and installation through KOReader Storefront.
+### Alternative: Storefront
+
+If you have [Storefront](https://github.com/ultimatejimmy/storefront.koplugin) installed in KOReader, look for the BookOrbit plugin in its plugin catalog and install it from there.
 
 ## Automated synchronization
 
