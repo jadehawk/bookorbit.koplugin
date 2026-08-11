@@ -31,16 +31,21 @@ jobs:
           ref: main
           path: upstream
 
-      - name: Read upstream plugin version and fingerprint
+      - name: Read upstream plugin version, release gate, and fingerprint
         id: upstream
         shell: bash
         run: |
           set -euo pipefail
           version=$(sed -n 's/^local PLUGIN_VERSION = "\([^"]*\)"/\1/p' upstream/koreader-plugin/bookorbit.koplugin/main.lua)
+          release=""
+          if [[ -f upstream/koreader-plugin/RELEASE ]]; then
+            release=$(tr -d '[:space:]' < upstream/koreader-plugin/RELEASE)
+          fi
           test -n "$version"
           sha=$(git -C upstream rev-parse HEAD)
           fingerprint=$(git -C upstream ls-tree -r HEAD koreader-plugin/bookorbit.koplugin | sha256sum | awk '{print $1}')
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "release=$release" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
           echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
 
@@ -59,19 +64,35 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Verify version is publishable
+      - name: Check upstream release gate
+        id: gate
         if: steps.changes.outputs.changed == 'true'
         shell: bash
         run: |
           set -euo pipefail
           version="${{ steps.upstream.outputs.version }}"
+          release="${{ steps.upstream.outputs.release }}"
+          if [[ "$version" == "$release" ]]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+            echo "Plugin v${version} is marked ready for distribution."
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "Plugin source changed, but PLUGIN_VERSION=${version} and RELEASE=${release}. Skipping publication."
+          fi
+
+      - name: Verify version is publishable
+        if: steps.changes.outputs.changed == 'true' && steps.gate.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.upstream.outputs.version }}"
           if git rev-parse "v${version}" >/dev/null 2>&1; then
-            echo "Upstream changed but plugin version v${version} already exists. Bump PLUGIN_VERSION in bookorbit/bookorbit before publishing." >&2
+            echo "Upstream changed but plugin version v${version} already exists. Bump PLUGIN_VERSION and koreader-plugin/RELEASE in bookorbit/bookorbit before publishing." >&2
             exit 1
           fi
 
       - name: Run upstream KOReader Lua test suite
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' && steps.gate.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -81,7 +102,7 @@ jobs:
           find koreader-plugin/spec -maxdepth 1 -name '*_test.lua' -print0 | sort -z | xargs -0 -n1 /usr/bin/lua5.1
 
       - name: Synchronize plugin source
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' && steps.gate.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -90,7 +111,7 @@ jobs:
           printf '%s\n' "${{ steps.upstream.outputs.fingerprint }}" > .upstream-plugin-fingerprint
 
       - name: Validate generic distribution
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' && steps.gate.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -100,14 +121,14 @@ jobs:
           test ! -e bookorbit.koplugin/credentials.lua
 
       - name: Build plugin archive
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' && steps.gate.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
           zip -qr bookorbit.koplugin.zip bookorbit.koplugin
 
       - name: Commit synchronized source
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' && steps.gate.outputs.publish == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -118,7 +139,7 @@ jobs:
           git push origin HEAD
 
       - name: Create GitHub release
-        if: steps.changes.outputs.changed == 'true'
+        if: steps.changes.outputs.changed == 'true' && steps.gate.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
