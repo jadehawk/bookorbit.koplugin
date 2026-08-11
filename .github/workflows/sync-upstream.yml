@@ -1,0 +1,130 @@
+name: Sync BookOrbit KOReader Plugin
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out distribution repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check out BookOrbit upstream
+        uses: actions/checkout@v4
+        with:
+          repository: bookorbit/bookorbit
+          ref: main
+          path: upstream
+
+      - name: Read upstream plugin version and fingerprint
+        id: upstream
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=$(sed -n 's/^local PLUGIN_VERSION = "\([^"]*\)"/\1/p' upstream/koreader-plugin/bookorbit.koplugin/main.lua)
+          test -n "$version"
+          sha=$(git -C upstream rev-parse HEAD)
+          fingerprint=$(git -C upstream ls-tree -r HEAD koreader-plugin/bookorbit.koplugin | sha256sum | awk '{print $1}')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "fingerprint=$fingerprint" >> "$GITHUB_OUTPUT"
+
+      - name: Detect plugin changes
+        id: changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_fingerprint=""
+          if [[ -f .upstream-plugin-fingerprint ]]; then
+            current_fingerprint=$(cat .upstream-plugin-fingerprint)
+          fi
+          if [[ "$current_fingerprint" == "${{ steps.upstream.outputs.fingerprint }}" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify version is publishable
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.upstream.outputs.version }}"
+          if git rev-parse "v${version}" >/dev/null 2>&1; then
+            echo "Upstream changed but plugin version v${version} already exists. Bump PLUGIN_VERSION in bookorbit/bookorbit before publishing." >&2
+            exit 1
+          fi
+
+      - name: Run upstream KOReader Lua test suite
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y lua5.1
+          cd upstream
+          find koreader-plugin/spec -maxdepth 1 -name '*_test.lua' -print0 | sort -z | xargs -0 -n1 /usr/bin/lua5.1
+
+      - name: Synchronize plugin source
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf bookorbit.koplugin
+          cp -a upstream/koreader-plugin/bookorbit.koplugin ./bookorbit.koplugin
+          printf '%s\n' "${{ steps.upstream.outputs.fingerprint }}" > .upstream-plugin-fingerprint
+
+      - name: Validate generic distribution
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f bookorbit.koplugin/_meta.lua
+          test -f bookorbit.koplugin/main.lua
+          test ! -e bookorbit.koplugin/bookorbit_config.lua
+          test ! -e bookorbit.koplugin/credentials.lua
+
+      - name: Build plugin archive
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          zip -qr bookorbit.koplugin.zip bookorbit.koplugin
+
+      - name: Commit synchronized source
+        if: steps.changes.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add bookorbit.koplugin .upstream-plugin-fingerprint
+          git commit -m "chore: sync BookOrbit KOReader plugin v${{ steps.upstream.outputs.version }}"
+          git push origin HEAD
+
+      - name: Create GitHub release
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.upstream.outputs.version }}"
+          sha="${{ steps.upstream.outputs.sha }}"
+          git tag "v${version}"
+          git push origin "v${version}"
+          gh release create "v${version}" bookorbit.koplugin.zip \
+            --title "BookOrbit KOReader Plugin v${version}" \
+            --notes "Automated distribution of the BookOrbit KOReader plugin from bookorbit/bookorbit upstream commit ${sha}."
