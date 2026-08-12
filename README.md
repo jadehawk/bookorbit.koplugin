@@ -1,6 +1,6 @@
 # BookOrbit KOReader Plugin
 
-This repository is the automated distribution mirror for the BookOrbit KOReader plugin. Its purpose is to make the plugin available as a standalone distribution and discoverable by KOReader plugin catalogs such as [Storefront](https://github.com/ultimatejimmy/storefront.koplugin).
+This repository is the automated distribution mirror for the BookOrbit KOReader plugin. Its purpose is to make the plugin available as a standalone distribution and discoverable by KOReader plugin catalogs such as [Storefront](https://github.com/ultimatejimmy/storefront.koplugin) and [Appstore](https://github.com/omer-faruq/appstore.koplugin).
 
 The source of truth is the [BookOrbit repository](https://github.com/bookorbit/bookorbit). Plugin code is developed and reviewed there; do not submit plugin implementation changes to this distribution mirror.
 
