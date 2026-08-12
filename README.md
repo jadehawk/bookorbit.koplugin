@@ -37,3 +37,14 @@ If a new BookOrbit release does not change the KOReader plugin, the workflow exi
 ## License
 
 BookOrbit is distributed under the GNU Affero General Public License v3.0. See [LICENSE](LICENSE).
+
+<img width="240" height="319" alt="1- List (Small)" src="https://github.com/user-attachments/assets/68e79bce-d8b6-4c7a-90d6-59e663fa2f74" />
+
+<img width="480" height="638" alt="2- Readme (Small)" src="https://github.com/user-attachments/assets/c2fbe6e6-b01c-4912-8914-0ee22b9f9784" />
+
+<img width="480" height="638" alt="3- Release-Notes (Small)" src="https://github.com/user-attachments/assets/521996f3-1975-470e-994a-c365f97c1eef" />
+
+<img width="480" height="638" alt="4- Version Tags (Small)" src="https://github.com/user-attachments/assets/c38070fc-8d77-4b1f-a814-4cb6f4786d52" />
+
+
+
