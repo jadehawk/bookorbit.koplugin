@@ -541,6 +541,7 @@ function BookOrbitApi:matchCheck(hashes, candidates)
                 authors = boundedUtf8(cand.authors, MATCH_AUTHORS_MAX_BYTES),
                 lastOpen = nonNegativeInteger(cand.last_open),
                 source = validMatchSource(cand.source),
+                bookFileId = nonNegativeInteger(cand.book_file_id),
                 metadataAmbiguous = optionalBoolean(cand.metadata_ambiguous),
             })
         end
