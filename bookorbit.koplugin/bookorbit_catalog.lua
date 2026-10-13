@@ -307,9 +307,7 @@ function BookOrbitCatalog:init()
     self.paths = self.stack
     UIManager:nextTick(function()
         self:hydrateOnDeviceMaps()
-        if self:shouldRefreshDashboardOnOpen() then
-            self:loadDashboardRoot(true, { invisible = true })
-        end
+        self:refreshDashboardOnOpen()
         -- One-off cache migration, queued behind the refresh so its directory
         -- walk cannot delay the first dashboard request.
         UIManager:scheduleIn(1.0, function()
@@ -439,9 +437,7 @@ function BookOrbitCatalog:refreshCurrent()
     elseif context.kind == "detail" and context.detail then
         self:evictCachedCovers(self:detailThumbnailBooks(context.detail))
         self:runConnected(function()
-            local detail, err = self:fetch(_("Refreshing..."), function()
-                return self.client:catalogBook(context.detail.id)
-            end)
+            local detail, err = self:fetchDeliveryBook(context.detail.id, nil, _("Refreshing..."))
             if not detail then
                 local cached = self:cachedBookDetail(context.detail.id)
                 if cached and err ~= "cancelled" then
@@ -477,10 +473,15 @@ function BookOrbitCatalog:markStackDirty()
     end
 end
 
+-- Going home shows the cached dashboard at once and refreshes it behind the
+-- redraw, like opening the catalog does, so it never waits on a connection.
 function BookOrbitCatalog:goDashboard()
     self.stack = {}
-    self:updateReturnPath()
-    self:loadDashboardRoot(true)
+    local items, context = self:initialDashboardContext()
+    self:switchTo(context.title or self.title, items, context, false)
+    UIManager:nextTick(function()
+        self:refreshDashboardOnOpen()
+    end)
 end
 
 function BookOrbitCatalog:sectionSubtitle(page, q, has_next)
@@ -617,6 +618,14 @@ function BookOrbitCatalog:dashboardResumePath(book)
 end
 
 function BookOrbitCatalog:onDeviceFilePath(file)
+    if file and file.selection then
+        local Delivery = require("bookorbit_delivery")
+        local variants = self.settings.catalog_downloaded_variants or {}
+        local marker = variants[Delivery.key(self.client) .. "|" .. tostring(file.id) .. "|" .. file.downloadVariant]
+        if type(marker) ~= "table" or marker.selection ~= file.selection then return nil end
+        local path = marker.path
+        return path and lfs.attributes(path) and path or nil
+    end
     return file ~= nil and file.id ~= nil and self.on_device_files and self.on_device_files[file.id] or nil
 end
 
@@ -2415,11 +2424,9 @@ function BookOrbitCatalog:onReturn()
         if self.current_context.kind == "dashboard" then
             self:scheduleThumbnailDownloads(self.dashboardBooks(self.current_context.dashboard))
         end
-        if self:shouldRefreshDashboardOnOpen() then
-            UIManager:nextTick(function()
-                self:loadDashboardRoot(true, { invisible = true })
-            end)
-        end
+        UIManager:nextTick(function()
+            self:refreshDashboardOnOpen()
+        end)
     end
     self:updateLeftIcon()
     if dirty then

@@ -178,27 +178,38 @@ function CatalogDashboard:cachedDashboardContext(cached, opts)
 end
 
 -- What the catalog widget opens on, built without touching the network: the
--- cached dashboard when there is one, otherwise a placeholder the pending
--- refresh replaces in place.
+-- cached dashboard when there is one, otherwise a placeholder the refresh
+-- replaces in place. Offline the placeholder says the dashboard could not be
+-- loaded, because a connection may never come.
 function CatalogDashboard:initialDashboardContext()
     local cached = self:dashboardCache()
     if cached then
         return self:cachedDashboardContext(cached)
     end
-    if self:shouldRefreshDashboardOnOpen() then
+    if NetworkMgr:isConnected() then
         return self:dashboardContext(nil, { stale = true, loading = true })
     end
     return self:dashboardContext(nil, { stale = true, unavailable = true })
 end
 
--- An offline-tolerant open (auto-open, offline browse) never asks for a
--- connection on its own; only an explicit browse goes through the connected
--- gate.
+-- An offline-tolerant catalog never asks for a connection on its own. An
+-- explicit open is not offline-tolerant until its first refresh has asked.
 function CatalogDashboard:shouldRefreshDashboardOnOpen()
     if self.prefer_cached_dashboard and not NetworkMgr:isConnected() then
         return false
     end
     return true
+end
+
+-- The refresh behind a dashboard that has just been shown. An explicit open
+-- asks for a connection once, through the user's Wi-Fi policy, while the
+-- cached dashboard is already on screen. Returning to the dashboard later
+-- keeps the cache while offline rather than asking again.
+function CatalogDashboard:refreshDashboardOnOpen()
+    if self:shouldRefreshDashboardOnOpen() then
+        self:loadDashboardRoot(true, { invisible = true })
+    end
+    self.prefer_cached_dashboard = true
 end
 
 function CatalogDashboard:dashboardRoot(opts)
@@ -325,6 +336,11 @@ function CatalogDashboard:loadDashboardRoot(replace, opts)
             and self.current_context == expected_context
     end
     self:runConnected(function()
+        -- The screen said the dashboard could not be loaded while this waited
+        -- for a connection, so the fetch shows that it is now loading.
+        if expected_context and expected_context.unavailable then
+            request_opts.invisible = nil
+        end
         local items, context = self:dashboardRoot(request_opts)
         if self.catalog_closed or request_generation ~= self.dashboard_request_generation
                 or self.current_context ~= expected_context then
